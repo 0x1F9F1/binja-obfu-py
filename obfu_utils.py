@@ -12,18 +12,6 @@ class RunInBackground(BackgroundTaskThread):
         self.func(self, *self.args, **self.kwargs)
 
 
-# BinaryView doens't have a __hash__ function.
-class HashByHandle:
-    def __init__(self, value):
-        self.value = value
-    def __hash__(self):
-        return hash(ctypes.addressof(self.value.handle.contents))
-    def __eq__(self, other):
-        return self.value == other.value
-    def __ne__(self, value):
-        return self.value != other.value
-
-
 # LowLevelILFunction isn't provided with a source_function during LLIL generation, but we need it to access the BinaryView.
 def get_llil_view(llil):
     return BinaryView(handle = core.BNGetFunctionData(core.BNGetLowLevelILOwnerFunction(llil.handle)))

@@ -1,7 +1,7 @@
 from binaryninja import ArchitectureHook
 from collections import defaultdict
 
-from obfu_utils import HashByHandle, get_llil_view, eval_llil_tokens
+from obfu_utils import get_llil_view, eval_llil_tokens
 
 
 def add_patches(view, addr, patch):

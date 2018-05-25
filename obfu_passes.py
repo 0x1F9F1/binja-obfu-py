@@ -64,8 +64,6 @@ def fix_jumps(view, func):
     for block in llil.basic_blocks:
         insn = block[-1]
 
-        func.set_auto_instr_highlight(insn.address, HighlightStandardColor.BlueHighlightColor)
-
         if insn.operation not in [ LowLevelILOperation.LLIL_RET, LowLevelILOperation.LLIL_JUMP_TO, LowLevelILOperation.LLIL_TAILCALL, LowLevelILOperation.LLIL_JUMP ]:
             continue
 
@@ -144,6 +142,54 @@ def fix_jumps(view, func):
 
     return count
 
+# See https://github.com/Vector35/binaryninja-api/issues/1038
+def fix_stack(view, func):
+    arch = view.arch
+    llil = func.low_level_il
+    addr_size = arch.address_size
+    stack_reg = arch.stack_pointer
+    count = 0
+    for block in llil.basic_blocks:
+        for insn in block:
+            if insn.operation != LowLevelILOperation.LLIL_SET_REG:
+                continue
+            if insn.dest.name != stack_reg:
+                continue
+            if insn.src.operation == LowLevelILOperation.LLIL_POP:
+                log_info('Stack Pop @ 0x{0:X}'.format(insn.address))
+
+                stack_before = insn.get_reg_value(stack_reg)
+                stack_after  = insn.get_reg_value_after(stack_reg)
+
+                if stack_before.type != RegisterValueType.StackFrameOffset:
+                    log_info('Failed to determine SP before')
+                    continue
+                if stack_after.type != RegisterValueType.StackFrameOffset:
+                    log_info('Faield to determine SP after')
+                    continue
+
+                stack_adjustment = stack_after.offset - stack_before.offset
+
+                patches = [ ]
+
+                patches.append([
+                    insn.dest.index,
+                    insn.dest.index,
+                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_REG, addr_size),
+                    stack_adjustment,
+                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_CONST, addr_size),
+                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_ADD, addr_size),
+                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_SET_REG, addr_size)
+                ])
+
+                add_patches(view, insn.address, patches)
+
+                log_info('Patched Stack Pop @ 0x{0:X}'.format(insn.address))
+
+                count += 1
+
+    return count
+
 
 def mlil_ssa_get_if_mov_source(mlil, var):
     if var.operation != MediumLevelILOperation.MLIL_VAR_PHI:
@@ -161,8 +207,7 @@ def mlil_ssa_get_if_mov_source(mlil, var):
             log_info('Not MLIL_SET_VAR_SSA')
             return None
 
-    (branch, true_val, false_val) = \
-        mlil_ssa_solve_branch_dependence(mlil, *defs)
+    branch, true_val, false_val = mlil_ssa_solve_branch_dependence(mlil, *defs)
 
     return mlil_ssa_trace_var(mlil, branch.condition), branch, true_val, false_val
 
@@ -179,12 +224,15 @@ def get_indirect_branch_condition(mlil, branch):
         log_info('Not 2 Branches')
         return None
 
-    return mlil_ssa_get_if_mov_source(mlil, mlil_ssa_trace_var(mlil,
-                             branch.dest))
+    return mlil_ssa_get_if_mov_source(mlil, mlil_ssa_trace_var(mlil, branch.dest))
+
 
 
 def label_indirect_branches(view, func):
     mlil = func.medium_level_il.ssa_form
+
+    # Bug
+    highlight_arch = func.arch.base_arch
 
     for basic_block in mlil:
         last = basic_block[-1]
@@ -192,17 +240,24 @@ def label_indirect_branches(view, func):
         if cond is not None:
             (cond_insn, cond_move_insn, true_val, false_val) = \
                 (v.non_ssa_form for v in cond)
-            mlil.source_function.set_comment_at(last.address,
+            func.set_comment_at(last.address,
                     '{0} @ {1:x}  if ({2}) then {3} else {4}'.format(cond_insn.instr_index,
                     cond_insn.address, cond_insn, true_val.src,
                     false_val.src))
+            func.set_user_instr_highlight(last.address, HighlightStandardColor.BlueHighlightColor, arch = highlight_arch)
+
+            if true_val.src.operation == MediumLevelILOperation.MLIL_CONST:
+                func.set_user_instr_highlight(true_val.src.constant, HighlightStandardColor.GreenHighlightColor, arch = highlight_arch)
+
+            if false_val.src.operation == MediumLevelILOperation.MLIL_CONST:
+                func.set_user_instr_highlight(false_val.src.constant, HighlightStandardColor.RedHighlightColor, arch = highlight_arch)
 
 
 def fix_obfuscation_task(thread, view, func):
     for i in range(100):
         thread.progress = 'Removing Obfuscation - Pass {0}'.format(i)
 
-        if fix_jumps(view, func) or fix_tails(view, func):
+        if fix_jumps(view, func) or fix_tails(view, func) or fix_stack(view, func):
             func.reanalyze()
             view.update_analysis_and_wait()
         else:

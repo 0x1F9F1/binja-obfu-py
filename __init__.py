@@ -3,7 +3,8 @@ from obfu_hook import ObfuArchHook
 from obfu_passes import fix_obfuscation
 
 obfu_arches = [
-    'x86', 'x86_64'
+    'x86',
+    'x86_64'
 ]
 
 for arch in obfu_arches:
