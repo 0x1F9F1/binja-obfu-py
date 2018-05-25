@@ -1,4 +1,4 @@
-from binaryninja import ArchitectureHook
+from binaryninja import ArchitectureHook, log
 from obfu_utils import get_llil_view, eval_llil_tokens
 import pickle
 
@@ -11,7 +11,7 @@ def get_all_patches(view):
         patches = dict()
         try:
             patches = pickle.loads(view.query_metadata(OBFU_KEY))
-            log_info('Loaded {0} patches'.format(len(patches)))
+            log.log_info('Loaded {0} patches'.format(len(patches)))
         except:
             pass
         session_data[OBFU_KEY] = patches
@@ -23,7 +23,7 @@ def save_patches(view):
     patches = get_all_patches(view)
 
     if patches:
-        log_info('Stored {0} patches to {1}'.format(len(patches), view))
+        log.log_info('Stored {0} patches to {1}'.format(len(patches), view))
 
         view.store_metadata(OBFU_KEY, pickle.dumps(patches))
 

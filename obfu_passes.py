@@ -87,17 +87,16 @@ def fix_jumps(view, func):
                 if (add_lhs.operation == LowLevelILOperation.LLIL_REG) and (add_lhs.src.name == stack_reg):
                     if add_rhs.operation == LowLevelILOperation.LLIL_CONST:
                         stack_adjustment = add_rhs.value.value
-                        stack_offset -= stack_adjustment
+                        stack_offset += stack_adjustment
                         patches.append([
                             add_lhs.src.index,
                             add_lhs.src.index,
                             LowLevelILOperationAndSize(LowLevelILOperation.LLIL_REG, addr_size),
                             stack_adjustment,
                             LowLevelILOperationAndSize(LowLevelILOperation.LLIL_CONST, addr_size),
-                            LowLevelILOperationAndSize(LowLevelILOperation.LLIL_SUB, addr_size),
+                            LowLevelILOperationAndSize(LowLevelILOperation.LLIL_ADD, addr_size),
                             LowLevelILOperationAndSize(LowLevelILOperation.LLIL_SET_REG, addr_size)
                         ])
-
 
         good_pops = 0
 
@@ -142,7 +141,7 @@ def fix_jumps(view, func):
 
     return count
 
-# See https://github.com/Vector35/binaryninja-api/issues/1038
+# https://github.com/Vector35/binaryninja-api/issues/1038
 def fix_stack(view, func):
     arch = view.arch
     llil = func.low_level_il
@@ -245,6 +244,7 @@ def label_indirect_branches(view, func):
                     cond_insn.address, cond_insn, true_val.src,
                     false_val.src))
             func.set_user_instr_highlight(last.address, HighlightStandardColor.BlueHighlightColor, arch = highlight_arch)
+            func.set_user_instr_highlight(cond_insn.address, HighlightStandardColor.OrangeHighlightColor, arch = highlight_arch)
 
             if true_val.src.operation == MediumLevelILOperation.MLIL_CONST:
                 func.set_user_instr_highlight(true_val.src.constant, HighlightStandardColor.GreenHighlightColor, arch = highlight_arch)
