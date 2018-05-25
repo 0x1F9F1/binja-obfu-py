@@ -1,5 +1,6 @@
 from binaryninja import ArchitectureHook, log
-from obfu_utils import get_llil_view, eval_llil_tokens
+from obfu_utils import get_llil_view
+from patch_builder import ILExpression, eval_llil_tokens
 import pickle
 
 OBFU_KEY = 'obfu_patches'
@@ -30,6 +31,9 @@ def save_patches(view):
 
 def add_patches(view, addr, patch):
     patches = get_all_patches(view)
+
+    patch = [ expr.flatten() if isinstance(expr, ILExpression) else expr for expr in patch ]
+
     patches[addr] = patch
 
 

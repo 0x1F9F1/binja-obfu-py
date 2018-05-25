@@ -2,6 +2,7 @@ from binaryninja import *
 from obfu_utils import *
 from obfu_hook import add_patches, get_patches, save_patches
 
+from patch_builder import expr, adjust_stack
 
 def get_llil_xrefs(view, addr):
     return [ get_xref_llil(xref) for xref in view.get_code_refs(addr) ]
@@ -88,15 +89,8 @@ def fix_jumps(view, func):
                     if add_rhs.operation == LowLevelILOperation.LLIL_CONST:
                         stack_adjustment = add_rhs.value.value
                         stack_offset += stack_adjustment
-                        patches.append([
-                            add_lhs.src.index,
-                            add_lhs.src.index,
-                            LowLevelILOperationAndSize(LowLevelILOperation.LLIL_REG, addr_size),
-                            stack_adjustment,
-                            LowLevelILOperationAndSize(LowLevelILOperation.LLIL_CONST, addr_size),
-                            LowLevelILOperationAndSize(LowLevelILOperation.LLIL_ADD, addr_size),
-                            LowLevelILOperationAndSize(LowLevelILOperation.LLIL_SET_REG, addr_size)
-                        ])
+
+                        patches.append(adjust_stack(arch, stack_adjustment))
 
         good_pops = 0
 
@@ -106,32 +100,26 @@ def fix_jumps(view, func):
                 break
             good_pops += 1
 
-        if good_pops == 0:
+        if not good_pops:
             continue
 
-        orig_dest = None
-
-        if dest.operation == LowLevelILOperation.LLIL_CONST_PTR:
-            orig_dest = [ dest.constant, LowLevelILOperationAndSize(dest.operation, dest.size) ]
-        elif dest.operation == LowLevelILOperation.LLIL_REG:
-            orig_dest = [ dest.src.index, LowLevelILOperationAndSize(dest.operation, dest.size) ]
-
-        if orig_dest is not None:
-            patches.append(orig_dest + [ LowLevelILOperationAndSize(LowLevelILOperation.LLIL_CALL, 0) ])
+        if dest.operation in [ LowLevelILOperation.LLIL_REG, LowLevelILOperation.LLIL_CONST_PTR ]:
+            patches.append(
+                expr(LowLevelILOperation.LLIL_CALL, 0, dest)
+            )
 
         for i in range(good_pops):
-            patches.extend([
-                [
-                    LLIL_TEMP(i),
-                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_POP, addr_size),
-                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_SET_REG, addr_size)
-                ],
-                [
-                    LLIL_TEMP(i),
-                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_REG, addr_size),
-                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_CALL if i else LowLevelILOperation.LLIL_JUMP, 0)
-                ]
-            ])
+            patches.append(
+                expr(LowLevelILOperation.LLIL_SET_REG, addr_size, LLIL_TEMP(i),
+                    expr(LowLevelILOperation.LLIL_POP, addr_size)
+                )
+            )
+
+            patches.append(
+                expr(LowLevelILOperation.LLIL_CALL if i else LowLevelILOperation.LLIL_JUMP, 0,
+                    expr(LowLevelILOperation.LLIL_REG, addr_size, LLIL_TEMP(i))
+                )
+            )
 
         log_info('Fixed {0} pop rop'.format(good_pops))
 
@@ -142,6 +130,7 @@ def fix_jumps(view, func):
     return count
 
 
+# Allow setting the function pointer type when the source of a call is a load
 def fix_calls(view, func):
     arch = view.arch
     llil = func.low_level_il
@@ -160,14 +149,15 @@ def fix_calls(view, func):
 
             patches = [ ]
 
-            patches.extend([
-                [ LLIL_TEMP(0) ] + get_llil_tokens(dest) + [ LowLevelILOperationAndSize(LowLevelILOperation.LLIL_SET_REG, addr_size) ],
-                [
-                    LLIL_TEMP(0),
-                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_REG, addr_size),
-                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_CALL, 0)
-                ]
-            ])
+            patches.append(
+                expr(LowLevelILOperation.LLIL_SET_REG, addr_size, LLIL_TEMP(0), dest)
+            )
+
+            patches.append(
+                expr(LowLevelILOperation.LLIL_CALL, 0,
+                    expr(LowLevelILOperation.LLIL_REG, addr_size, LLIL_TEMP(0))
+                )
+            )
 
             add_patches(view, insn.address, patches)
 
@@ -208,15 +198,7 @@ def fix_stack(view, func):
 
                 patches = [ ]
 
-                patches.append([
-                    insn.dest.index,
-                    insn.dest.index,
-                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_REG, addr_size),
-                    stack_adjustment,
-                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_CONST, addr_size),
-                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_ADD, addr_size),
-                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_SET_REG, addr_size)
-                ])
+                patches.append(adjust_stack(arch, stack_adjustment))
 
                 add_patches(view, insn.address, patches)
 

@@ -18,10 +18,6 @@ def get_llil_view(llil):
     return BinaryView(handle = core.BNGetFunctionData(core.BNGetLowLevelILOwnerFunction(llil.handle)))
 
 
-def pop_args(stack, count):
-    return list(reversed(list(stack.pop() for _ in range(count))))
-
-
 # https://en.wikipedia.org/wiki/Reverse_Polish_notation
 def eval_llil_tokens(llil, tokens):
     args = list()
