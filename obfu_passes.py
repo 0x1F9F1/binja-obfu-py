@@ -1,6 +1,6 @@
 from binaryninja import *
 from obfu_utils import *
-from obfu_hook import add_patches, get_patches
+from obfu_hook import add_patches, get_patches, save_patches
 
 
 def get_llil_xrefs(view, addr):
@@ -265,6 +265,8 @@ def fix_obfuscation_task(thread, view, func):
 
     thread.progress = 'Labelling Indirect Branches'
     label_indirect_branches(view, func)
+
+    save_patches(view)
 
 
 def fix_obfuscation(view, func):

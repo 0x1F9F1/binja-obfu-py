@@ -1,25 +1,41 @@
 from binaryninja import ArchitectureHook
-from collections import defaultdict
-
 from obfu_utils import get_llil_view, eval_llil_tokens
+import pickle
+
+OBFU_KEY = 'obfu_patches'
+
+def get_all_patches(view):
+    session_data = view.session_data
+
+    if OBFU_KEY not in session_data:
+        patches = dict()
+        try:
+            patches = pickle.loads(view.query_metadata(OBFU_KEY))
+            log_info('Loaded {0} patches'.format(len(patches)))
+        except:
+            pass
+        session_data[OBFU_KEY] = patches
+
+    return session_data[OBFU_KEY]
+
+
+def save_patches(view):
+    patches = get_all_patches(view)
+
+    if patches:
+        log_info('Stored {0} patches to {1}'.format(len(patches), view))
+
+        view.store_metadata(OBFU_KEY, pickle.dumps(patches))
 
 
 def add_patches(view, addr, patch):
-    session_data = view.session_data
-
-    if 'obfu_patches' not in session_data:
-        session_data['obfu_patches'] = dict()
-
-    view.session_data['obfu_patches'][addr] = patch
+    patches = get_all_patches(view)
+    patches[addr] = patch
 
 
 def get_patches(view, addr):
-    session_data = view.session_data
-
-    if 'obfu_patches' not in session_data:
-        session_data['obfu_patches'] = dict()
-
-    return view.session_data['obfu_patches'].get(addr)
+    patches = get_all_patches(view)
+    return patches.get(addr)
 
 
 class ObfuArchHook(ArchitectureHook):
