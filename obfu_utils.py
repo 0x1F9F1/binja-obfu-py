@@ -37,6 +37,10 @@ def eval_llil_tokens(llil, tokens):
     return LowLevelILExpr(args.pop())
 
 
+def get_llil_tokens(llil):
+    return [ token.index if type(token) is ILRegister else token for token in llil.postfix_operands ]
+
+
 def mlil_ssa_trace_var(mlil, var):
     for _ in range(100):
         if var.operation == MediumLevelILOperation.MLIL_VAR_SSA:

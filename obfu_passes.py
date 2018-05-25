@@ -128,8 +128,8 @@ def fix_jumps(view, func):
                 ],
                 [
                     LLIL_TEMP(i),
-                   LowLevelILOperationAndSize(LowLevelILOperation.LLIL_REG, addr_size),
-                   LowLevelILOperationAndSize(LowLevelILOperation.LLIL_CALL if i else LowLevelILOperation.LLIL_JUMP, 0)
+                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_REG, addr_size),
+                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_CALL if i else LowLevelILOperation.LLIL_JUMP, 0)
                 ]
             ])
 
@@ -140,6 +140,43 @@ def fix_jumps(view, func):
         count += 1
 
     return count
+
+
+def fix_calls(view, func):
+    arch = view.arch
+    llil = func.low_level_il
+    addr_size = arch.address_size
+    stack_reg = arch.stack_pointer
+    count = 0
+    for block in llil.basic_blocks:
+        for insn in block:
+            if get_patches(view, insn.address) is not None:
+                continue
+            if insn.operation != LowLevelILOperation.LLIL_CALL:
+                continue
+            dest = insn.dest
+            if dest.operation != LowLevelILOperation.LLIL_LOAD:
+                continue
+
+            patches = [ ]
+
+            patches.extend([
+                [ LLIL_TEMP(0) ] + get_llil_tokens(dest) + [ LowLevelILOperationAndSize(LowLevelILOperation.LLIL_SET_REG, addr_size) ],
+                [
+                    LLIL_TEMP(0),
+                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_REG, addr_size),
+                    LowLevelILOperationAndSize(LowLevelILOperation.LLIL_CALL, 0)
+                ]
+            ])
+
+            add_patches(view, insn.address, patches)
+
+            log_info('Added temp register for call @ 0x{0:X}'.format(insn.address))
+
+            count += 1
+
+    return count
+
 
 # https://github.com/Vector35/binaryninja-api/issues/1038
 def fix_stack(view, func):
@@ -257,7 +294,7 @@ def fix_obfuscation_task(thread, view, func):
     for i in range(100):
         thread.progress = 'Removing Obfuscation - Pass {0}'.format(i)
 
-        if fix_jumps(view, func) or fix_tails(view, func) or fix_stack(view, func):
+        if fix_jumps(view, func) or fix_tails(view, func) or fix_stack(view, func) or fix_calls(view, func):
             func.reanalyze()
             view.update_analysis_and_wait()
         else:
