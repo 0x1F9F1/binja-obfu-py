@@ -175,44 +175,62 @@ def fix_stack(view, func):
     llil = func.low_level_il
     addr_size = arch.address_size
     stack_reg = arch.stack_pointer
+    stack_reg_index = arch.get_reg_index(arch.stack_pointer)
     count = 0
     for block in llil.basic_blocks:
         for insn in block:
             if insn.operation != LowLevelILOperation.LLIL_SET_REG:
                 continue
-            if insn.dest.name != stack_reg:
+            if insn.src.operation != LowLevelILOperation.LLIL_POP:
                 continue
-            if insn.src.operation == LowLevelILOperation.LLIL_POP:
-                log_info('Stack Pop @ 0x{0:X}'.format(insn.address))
 
-                stack_before = insn.get_reg_value(stack_reg)
-                stack_after  = insn.get_reg_value_after(stack_reg)
+            stack_before = insn.get_reg_value(stack_reg)
 
-                if stack_before.type != RegisterValueType.StackFrameOffset:
-                    log_info('Failed to determine SP before')
-                    continue
-                if stack_after.type != RegisterValueType.StackFrameOffset:
-                    log_info('Faield to determine SP after')
-                    continue
+            if stack_before.type != RegisterValueType.StackFrameOffset:
+                log_info('Failed to determine SP')
+                continue
 
-                stack_adjustment = stack_after.offset - stack_before.offset
+            # https://github.com/Vector35/binaryninja-api/issues/999
+            # stack_after = insn.get_reg_value_after(stack_reg)
+            stack_after = RegisterValue()
+            stack_after.type = RegisterValueType.StackFrameOffset
+            stack_after.offset = stack_before.offset + addr_size
 
-                patches = [ ]
+            dest_reg = insn.dest
 
-                patches.append(adjust_stack(arch, stack_adjustment))
+            if dest_reg.temp:
+                continue
 
-                add_patches(view, insn.address, patches)
+            dest_after = insn.get_reg_value_after(dest_reg.name)
 
-                log_info('Patched Stack Pop @ 0x{0:X}'.format(insn.address))
+            if dest_after.type != RegisterValueType.StackFrameOffset:
+                continue
 
-                count += 1
+            patches = [ ]
+
+            patches.append(adjust_stack(arch, stack_after.offset - stack_before.offset))
+
+            patches.append(
+                expr(LowLevelILOperation.LLIL_SET_REG, addr_size, dest_reg,
+                    expr(LowLevelILOperation.LLIL_ADD, addr_size,
+                        expr(LowLevelILOperation.LLIL_REG, addr_size, stack_reg_index),
+                        expr(LowLevelILOperation.LLIL_CONST, addr_size, dest_after.offset - stack_after.offset)
+                    )
+                )
+            )
+
+            add_patches(view, insn.address, patches)
+
+            log_info('Patched Stack Pop @ 0x{0:X}'.format(insn.address))
+
+            count += 1
 
     return count
 
 
 def mlil_ssa_get_if_mov_source(mlil, var):
     if var.operation != MediumLevelILOperation.MLIL_VAR_PHI:
-        log_info('Not MLIL_VAR_PHI', var)
+        log_info('Not MLIL_VAR_PHI')
         return None
 
     phis = var.src
