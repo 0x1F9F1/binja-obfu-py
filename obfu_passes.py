@@ -62,6 +62,7 @@ def fix_jumps(view, func):
     addr_size = arch.address_size
     stack_reg = arch.stack_pointer
     count = 0
+
     for block in llil.basic_blocks:
         insn = block[-1]
 
@@ -272,9 +273,28 @@ def label_indirect_branches(view, func):
                 func.set_user_instr_highlight(false_val.src.constant, HighlightStandardColor.RedHighlightColor, arch = highlight_arch)
 
 
+def highlight_possible_tails(view, func):
+    arch = func.arch
+    llil = func.low_level_il
+    addr_size = arch.address_size
+    stack_reg = arch.stack_pointer
+    highlight_arch = arch.base_arch
+    for basic_block in llil:
+        last = basic_block[-1]
+        stack_offset = last.get_reg_value_after(stack_reg)
+        if stack_offset.type != RegisterValueType.StackFrameOffset:
+            continue
+
+        if not stack_offset.offset:
+            if not func.get_instr_highlight(last.address).alpha:
+                func.set_user_instr_highlight(last.address, HighlightStandardColor.BlueHighlightColor, arch = highlight_arch)
+
+
 def fix_obfuscation_task(thread, view, func):
+    view.update_analysis_and_wait()
+
     for i in range(100):
-        thread.progress = 'Removing Obfuscation - Pass {0}'.format(i)
+        thread.progress = 'Deobfuscating for {0}, Pass {1}'.format(func.name, i + 1)
 
         if fix_jumps(view, func) or fix_tails(view, func) or fix_stack(view, func) or fix_calls(view, func):
             func.reanalyze()
@@ -284,6 +304,7 @@ def fix_obfuscation_task(thread, view, func):
 
     thread.progress = 'Labelling Indirect Branches'
     label_indirect_branches(view, func)
+    highlight_possible_tails(view, func)
 
     save_patches(view)
 
