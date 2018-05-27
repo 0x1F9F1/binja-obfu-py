@@ -18,25 +18,6 @@ def get_llil_view(llil):
     return BinaryView(handle = core.BNGetFunctionData(core.BNGetLowLevelILOwnerFunction(llil.handle)))
 
 
-# https://en.wikipedia.org/wiki/Reverse_Polish_notation
-def eval_llil_tokens(llil, tokens):
-    args = list()
-
-    for token in tokens:
-        if type(token) is LowLevelILOperationAndSize:
-            operation = token.operation
-            arg_count = len(LowLevelILInstruction.ILOperations[operation])
-            args.append(llil.expr(operation, *pop_args(args, arg_count), size = token.size).index)
-        else:
-            args.append(token)
-
-    return LowLevelILExpr(args.pop())
-
-
-def get_llil_tokens(llil):
-    return [ token.index if type(token) is ILRegister else token for token in llil.postfix_operands ]
-
-
 def mlil_ssa_trace_var(mlil, var):
     for _ in range(100):
         if var.operation == MediumLevelILOperation.MLIL_VAR_SSA:
@@ -48,13 +29,35 @@ def mlil_ssa_trace_var(mlil, var):
             var = var.src
         else:
             return var
-
-    log_error('Failed to trace var {0} in {1}'.format(var, mlil))
     return None
 
 
 def mlil_ssa_get_phi_defs(mlil, phis):
     return [ mlil[mlil.get_ssa_var_definition(phi)] for phi in phis ]
+
+
+def mlil_ssa_trace_var_phis(mlil, var):
+    # TODO: Can this be simplified?
+    pending = set()
+    ignored = set()
+    results = set()
+    pending.add(var)
+    while pending:
+        var = mlil_ssa_trace_var(mlil, pending.pop())
+        if var.operation == MediumLevelILOperation.MLIL_VAR_PHI:
+            if var.dest in ignored:
+                continue
+            ignored.add(var.dest)
+            pending |= set(mlil_ssa_get_phi_defs(mlil, var.src))
+        else:
+            results.add(var)
+
+    # MediumLevelILInstruction has no __eq__
+    results = list(results)
+    if len(set(insn.expr_index for insn in results)) > 1:
+        return None
+
+    return results[0]
 
 
 def mlil_ssa_solve_branch_dependence(mlil, lhs, rhs):

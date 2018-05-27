@@ -208,7 +208,9 @@ def fix_stack(view, func):
 
             patches = [ ]
 
-            patches.append(adjust_stack(arch, stack_after.offset - stack_before.offset))
+            patches.append(
+                adjust_stack(arch, stack_after.offset - stack_before.offset)
+            )
 
             patches.append(
                 expr(LowLevelILOperation.LLIL_SET_REG, addr_size, dest_reg,
@@ -312,7 +314,7 @@ def fix_obfuscation_task(thread, view, func):
     view.update_analysis_and_wait()
 
     for i in range(100):
-        thread.progress = 'Deobfuscating for {0}, Pass {1}'.format(func.name, i + 1)
+        thread.progress = 'Deobfuscating {0}, Pass {1}'.format(func.name, i + 1)
 
         if fix_jumps(view, func) or fix_tails(view, func) or fix_stack(view, func) or fix_calls(view, func):
             func.reanalyze()
