@@ -306,8 +306,8 @@ def highlight_possible_tails(view, func):
             continue
 
         if not stack_offset.offset:
-            if not func.get_instr_highlight(last.address).alpha:
-                func.set_user_instr_highlight(last.address, HighlightStandardColor.BlueHighlightColor, arch = highlight_arch)
+            if not func.get_instr_highlight(last.address, arch = highlight_arch).alpha:
+                func.set_user_instr_highlight(last.address, HighlightStandardColor.MagentaHighlightColor, arch = highlight_arch)
 
 
 def fix_obfuscation_task(thread, view, func):

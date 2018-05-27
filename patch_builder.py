@@ -30,7 +30,11 @@ class ILExpression:
 
 
 def pop_args(stack, count):
-    return list(reversed(list(stack.pop() for _ in range(count))))
+    if count:
+        results = stack[-count:]
+        del stack[-count:]
+        return results
+    return [ ]
 
 
 # https://en.wikipedia.org/wiki/Reverse_Polish_notation
