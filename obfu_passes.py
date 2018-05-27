@@ -4,6 +4,7 @@ from obfu_hook import add_patches, get_patches, save_patches
 
 from patch_builder import expr, adjust_stack
 
+
 def get_llil_xrefs(view, addr):
     return [ get_xref_llil(xref) for xref in view.get_code_refs(addr) ]
 
@@ -266,7 +267,6 @@ def get_indirect_branch_condition(mlil, branch):
     return mlil_ssa_get_if_mov_source(mlil, mlil_ssa_trace_var(mlil, branch.dest))
 
 
-
 def label_indirect_branches(view, func):
     mlil = func.medium_level_il.ssa_form
 
@@ -310,11 +310,15 @@ def highlight_possible_tails(view, func):
                 func.set_user_instr_highlight(last.address, HighlightStandardColor.MagentaHighlightColor, arch = highlight_arch)
 
 
-def fix_obfuscation_task(thread, view, func):
+def fix_obfuscation(thread, view, func, auto_save = True):
+    if thread is not None:
+        thread.progress = 'Deobfuscating {0}, Initial Analysis'.format(func.name)
+
     view.update_analysis_and_wait()
 
     for i in range(100):
-        thread.progress = 'Deobfuscating {0}, Pass {1}'.format(func.name, i + 1)
+        if thread is not None:
+            thread.progress = 'Deobfuscating {0}, Pass {1}'.format(func.name, i + 1)
 
         if fix_jumps(view, func) or fix_tails(view, func) or fix_stack(view, func) or fix_calls(view, func):
             func.reanalyze()
@@ -322,14 +326,11 @@ def fix_obfuscation_task(thread, view, func):
         else:
             break
 
-    thread.progress = 'Labelling Indirect Branches'
+    if thread is not None:
+        thread.progress = 'Deobfuscating {0}, Post Analysis'.format(func.name)
+
     label_indirect_branches(view, func)
     highlight_possible_tails(view, func)
 
-    save_patches(view)
-
-
-def fix_obfuscation(view, func):
-    task = RunInBackground('Removing Obfuscation',
-                           fix_obfuscation_task, view, func)
-    task.start()
+    if auto_save:
+        save_patches(view)
