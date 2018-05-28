@@ -106,13 +106,9 @@ def fix_jumps(view, func):
         while good_pops < 16:
             currnet_offset = stack_offset + (good_pops * addr_size)
             contents = get_stack_contents(insn, currnet_offset, addr_size)
-            if insn.address == 0x143865b40:
-                log_error('Value {0} - 0x{1:X}'.format(contents, currnet_offset))
             if not are_values_executable(view, contents):
                 break
             good_pops += 1
-            if insn.address == 0x143865b40:
-                log_error('Pops {0}'.format(good_pops))
 
         if not good_pops:
             continue
