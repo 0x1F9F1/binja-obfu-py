@@ -57,6 +57,13 @@ def fix_tails(view, func):
     return count
 
 
+def get_stack_contents(insn, offset, size):
+    result = insn.get_stack_contents(offset, size)
+    if result.type != RegisterValueType.UndeterminedValue:
+        return result
+    return insn.get_possible_stack_contents(offset, size)
+
+
 def fix_jumps(view, func):
     arch = view.arch
     llil = func.low_level_il
@@ -97,10 +104,15 @@ def fix_jumps(view, func):
         good_pops = 0
 
         while good_pops < 16:
-            contents = insn.get_possible_stack_contents(stack_offset + addr_size * good_pops, 0)
+            currnet_offset = stack_offset + (good_pops * addr_size)
+            contents = get_stack_contents(insn, currnet_offset, addr_size)
+            if insn.address == 0x143865b40:
+                log_error('Value {0} - 0x{1:X}'.format(contents, currnet_offset))
             if not are_values_executable(view, contents):
                 break
             good_pops += 1
+            if insn.address == 0x143865b40:
+                log_error('Pops {0}'.format(good_pops))
 
         if not good_pops:
             continue
@@ -110,7 +122,7 @@ def fix_jumps(view, func):
                 expr(LowLevelILOperation.LLIL_CALL, 0, dest)
             )
 
-        for i in range(good_pops):
+        for i in range(good_pops - 1, -1, -1):
             patches.append(
                 expr(LowLevelILOperation.LLIL_SET_REG, addr_size, LLIL_TEMP(i),
                     expr(LowLevelILOperation.LLIL_POP, addr_size)
@@ -123,7 +135,8 @@ def fix_jumps(view, func):
                 )
             )
 
-        log_info('Fixed {0} pop rop'.format(good_pops))
+
+        log_info('Fixed {0} pop rop @ 0x{1:X}'.format(good_pops, insn.address))
 
         add_patches(view, insn.address, patches)
 
