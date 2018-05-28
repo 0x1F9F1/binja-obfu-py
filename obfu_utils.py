@@ -103,5 +103,7 @@ def get_stack_offset(arch, insn):
 
 
 def are_values_executable(view, values):
+    if values.type == RegisterValueType.ImportedAddressValue:
+        return True
     raw_values = get_raw_values(values)
     return raw_values is not None and all(view.is_offset_executable(v) for v in raw_values)
