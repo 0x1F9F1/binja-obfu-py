@@ -65,7 +65,7 @@ def get_stack_contents(insn, offset, size):
 
 
 def fix_jumps(view, func):
-    arch = view.arch
+    arch = func.arch
     llil = func.low_level_il
     addr_size = arch.address_size
     stack_reg = arch.stack_pointer
@@ -143,7 +143,7 @@ def fix_jumps(view, func):
 
 # Allow setting the function pointer type when the source of a call is a load
 def fix_calls(view, func):
-    arch = view.arch
+    arch = func.arch
     llil = func.low_level_il
     addr_size = arch.address_size
     stack_reg = arch.stack_pointer
@@ -180,8 +180,11 @@ def fix_calls(view, func):
 
 
 # https://github.com/Vector35/binaryninja-api/issues/1038
+# @Brick a lot of it has to do with *when* we finally figure it out -- finding stack variables occurs prior to dataflow calculation
+# so during analysis, we might lose track of the stack pointer, mark up the variables we were able to identify, then solve for dataflow. So while dataflow will eventually realize what the stack # pointer is again, it's happened too late to go back a stage and resume where we left off
+# we'd need to have stack resolution and dataflow calculations able to incrementally feed back into each other, and we don't do that at present
 def fix_stack(view, func):
-    arch = view.arch
+    arch = func.arch
     llil = func.low_level_il
     addr_size = arch.address_size
     stack_reg = arch.stack_pointer
@@ -327,6 +330,8 @@ def fix_obfuscation(thread, view, func, auto_save = True):
 
     for i in range(100):
         if thread is not None:
+            if thread.cancelled:
+                break
             thread.progress = 'Deobfuscating {0}, Pass {1}'.format(func.name, i + 1)
 
         if fix_jumps(view, func) or fix_tails(view, func) or fix_stack(view, func) or fix_calls(view, func):
