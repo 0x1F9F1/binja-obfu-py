@@ -45,13 +45,14 @@ def get_patches(view, addr):
 class ObfuArchHook(ArchitectureHook):
     def get_instruction_low_level_il(self, data, addr, il):
         view = get_llil_view(il)
-        patch = get_patches(view, addr)
 
-        if patch is not None:
-            for tokens in patch:
-                new_il = eval_llil_tokens(il, tokens)
-                il.append(new_il)
+        if view is not None:
+            patch = get_patches(view, addr)
 
-            return self.get_instruction_info(data, addr).length
+            if patch is not None:
+                for tokens in patch:
+                    new_il = eval_llil_tokens(il, tokens)
+                    il.append(new_il)
+                return self.get_instruction_info(data, addr).length
 
         return super(ObfuArchHook, self).get_instruction_low_level_il(data, addr, il)

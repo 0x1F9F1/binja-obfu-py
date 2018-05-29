@@ -15,7 +15,10 @@ class RunInBackground(BackgroundTaskThread):
 # LowLevelILFunction isn't provided with a source_function during LLIL generation, but we need it to access the BinaryView.
 # https://github.com/Vector35/binaryninja-api/issues/551
 def get_llil_view(llil):
-    return BinaryView(handle = core.BNGetFunctionData(core.BNGetLowLevelILOwnerFunction(llil.handle)))
+    func = core.BNGetLowLevelILOwnerFunction(llil.handle)
+    if func is None:
+        return None
+    return BinaryView(handle = core.BNGetFunctionData(func))
 
 
 def mlil_ssa_trace_var(mlil, var):
