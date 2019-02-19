@@ -1,3 +1,5 @@
+# Obsolete, use https://github.com/0x1F9F1/binja-obfu instead
+
 # Deobfuscator
 Author: **Brick**
 
